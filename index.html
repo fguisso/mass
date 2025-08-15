@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MASS - Minimal Application Security Scorecard</title>
+  <!-- Vue.js 3 -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div id="app" class="container mx-auto p-4 md:p-8 max-w-5xl relative">
+
+    <!-- Círculo de Progresso Fixo -->
+    <div class="fixed top-6 left-6 z-20 hidden md:flex flex-col items-center">
+        <div class="relative w-24 h-24">
+            <svg class="w-full h-full" viewBox="0 0 100 100">
+                <circle class="text-gray-200" stroke-width="10" stroke="currentColor" fill="transparent" r="45" cx="50" cy="50" />
+                <circle class="text-indigo-600" stroke-width="10" :stroke-dasharray="circumference" :stroke-dashoffset="progressOffset" stroke-linecap="round" stroke="currentColor" fill="transparent" r="45" cx="50" cy="50" style="transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.3s;" />
+            </svg>
+            <span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xl font-bold text-indigo-700">{{ progressPercentage.toFixed(0) }}%</span>
+        </div>
+        <span class="mt-2 text-xs text-gray-600 font-semibold">Progresso</span>
+    </div>
+    
+    <!-- Toast de Notificação -->
+    <div v-if="toast.show" class="fixed top-5 right-5 z-50 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg transition-opacity duration-300" :class="{'opacity-0': !toast.visible}">
+        {{ toast.message }}
+    </div>
+
+    <div class="md:pl-32">
+        <!-- Cabeçalho -->
+        <header class="text-center mb-8">
+          <h1 class="text-4xl font-bold text-gray-900 tracking-tight">MASS</h1>
+          <p class="text-lg text-indigo-600">Minimal Application Security Scorecard</p>
+        </header>
+
+        <!-- Navegação por Abas -->
+        <div class="mb-6">
+          <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+              <button @click="setActiveTab('about')" :class="[activeTab === 'about' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300', 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 focus:outline-none']">Sobre</button>
+              <button @click="setActiveTab('form')" :class="[activeTab === 'form' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300', 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 focus:outline-none']">Formulário</button>
+              <button @click="setActiveTab('result')" :class="[activeTab === 'result' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300', 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 focus:outline-none']">Resultado</button>
+            </nav>
+          </div>
+        </div>
+
+        <!-- Conteúdo Principal -->
+        <main class="bg-white p-6 md:p-10 rounded-2xl shadow-lg">
+          <!-- Aba: Sobre -->
+          <div v-if="activeTab === 'about'">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Sobre o Projeto MASS</h2>
+            <div class="space-y-4 text-gray-600">
+                <p>O <strong>Minimal Application Security Scorecard (MASS)</strong> é uma ferramenta de autoavaliação projetada para ajudar as equipes de desenvolvimento a medir e entender seu nível de maturidade em segurança de aplicações.</p>
+                <p>O objetivo é ser um ponto de partida para conversas construtivas sobre segurança, promovendo uma cultura de <strong class="text-indigo-600">Security by Design</strong>. Esta versão permite uma análise comparativa, onde você pode preencher uma avaliação principal e uma de comparação para visualizar a evolução da maturidade de segurança do seu time.</p>
+            </div>
+          </div>
+
+          <!-- Aba: Formulário -->
+          <div v-if="activeTab === 'form'">
+            <form @submit.prevent="handleSubmit">
+                <div class="mb-8 flex justify-center p-1 rounded-lg bg-gray-200">
+                    <button type="button" @click="activeForm = 'current'" :class="[activeForm === 'current' ? 'bg-white shadow' : 'text-gray-600', 'w-1/2 py-2 px-4 rounded-md font-semibold transition-all duration-300']">Avaliação Principal</button>
+                    <button type="button" @click="activeForm = 'previous'" :class="[activeForm === 'previous' ? 'bg-white shadow' : 'text-gray-600', 'w-1/2 py-2 px-4 rounded-md font-semibold transition-all duration-300']">Avaliação Comparação</button>
+                </div>
+                
+                <div class="mb-8 border-b border-gray-200 pb-8">
+                    <label :for="'teamName-' + activeForm" class="block text-lg font-semibold text-gray-800 mb-2">Nome do time ({{ activeForm === 'current' ? 'Principal' : 'Comparação' }})</label>
+                    <input :id="'teamName-' + activeForm" v-model.trim="teamNames[activeForm]" placeholder="Ex: Time de Inovação" class="w-full bg-white border border-gray-300 rounded-lg py-3 px-4 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-200" />
+                </div>
+
+                <div class="space-y-8">
+                    <div v-for="group in questionsByGroup" :key="group.title">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">{{ group.title }}</h2>
+                        <div class="space-y-4">
+                            <div v-for="q in group.questions" :key="q.id" class="rounded-lg shadow-sm border-l-4 transition-colors duration-300" :class="getBorderColor(responses[activeForm][q.index])">
+                                <div class="bg-white rounded-r-lg border border-gray-200 border-l-0">
+                                    <div class="p-4 flex justify-between items-center">
+                                        <div class="flex-1 flex items-center min-w-0">
+                                            <div class="bg-indigo-100 text-indigo-800 text-xs font-bold mr-4 px-2.5 py-1 rounded-full flex-shrink-0">{{ q.id }}</div>
+                                            <p class="font-semibold text-gray-800 truncate">{{ q.label }}</p>
+                                        </div>
+                                        <!-- Custom Select Component -->
+                                        <div class="relative ml-4 flex-shrink-0">
+                                            <button type="button" @click.stop="toggleSelect(q.index)" class="relative w-auto min-w-[12rem] bg-gray-50 border border-gray-300 rounded-lg py-2 pl-3 pr-10 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                                                <span class="block truncate">{{ getSelectedOptionText(activeForm, q.index, q.options) }}</span>
+                                                <span class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                                </span>
+                                            </button>
+                                            <transition leave-active-class="transition ease-in duration-100" leave-from-class="opacity-100" leave-to-class="opacity-0">
+                                                <ul v-show="openSelects[q.index]" class="absolute z-10 mt-1 w-auto min-w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                                                    <li v-for="(opt, i) in q.options" :key="i" @click="selectOption(activeForm, q.index, i)" class="cursor-default select-none relative py-2 pl-3 pr-9" :class="getOptionHoverColor(i)">
+                                                        <span class="block truncate">{{ opt }}</span>
+                                                    </li>
+                                                </ul>
+                                            </transition>
+                                        </div>
+                                        <button type="button" @click="toggleQuestion(q.index)" class="ml-4 p-1 flex-shrink-0">
+                                            <svg :class="{'rotate-180': openQuestions[q.index]}" class="w-5 h-5 text-gray-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </button>
+                                    </div>
+                                    <div v-show="openQuestions[q.index]" class="border-t border-gray-200 bg-gray-50 p-4">
+                                        <p class="text-sm text-gray-600">{{ q.description }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-10 text-center"><button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 duration-300">Salvar e Ver Resultado</button></div>
+            </form>
+          </div>
+
+          <!-- Aba: Resultado -->
+          <div v-if="activeTab === 'result'">
+            <!-- Seção de Importação / Exemplo -->
+            <div class="bg-gray-50 p-4 rounded-lg border border-dashed mb-8">
+                <h4 class="font-semibold text-center text-gray-800 mb-2">Ações Rápidas</h4>
+                <p class="text-sm text-center text-gray-600 mb-4">Carregue um arquivo JSON salvo ou popule o formulário com dados de exemplo.</p>
+                <div class="flex justify-center gap-4">
+                    <label for="import-current" class="cursor-pointer text-sm bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-semibold py-2 px-4 rounded-lg transition-colors duration-200">Carregar Principal</label>
+                    <input type="file" id="import-current" @change="handleFileUpload('current', $event)" class="hidden" accept=".json" />
+
+                    <label for="import-previous" class="cursor-pointer text-sm bg-teal-100 text-teal-800 hover:bg-teal-200 font-semibold py-2 px-4 rounded-lg transition-colors duration-200">Carregar Comparação</label>
+                    <input type="file" id="import-previous" @change="handleFileUpload('previous', $event)" class="hidden" accept=".json" />
+                    
+                    <button @click="populateWithExampleData" class="text-sm bg-gray-200 text-gray-800 hover:bg-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors duration-200">Popular com Exemplo</button>
+                </div>
+            </div>
+
+            <div v-if="!resultGenerated.current && !resultGenerated.previous" class="text-center text-gray-500 py-10">
+                <p>Nenhum dado de avaliação foi gerado ainda.</p>
+                <p class="text-sm">Preencha o formulário ou use as ações rápidas acima.</p>
+            </div>
+            <div v-else>
+                <div class="grid md:grid-cols-2 gap-8 mb-12">
+                    <div v-if="resultGenerated.current" class="bg-gray-50 p-6 rounded-lg border">
+                        <h3 class="text-2xl font-bold text-center text-gray-900 mb-4">Avaliação Principal: <span class="text-indigo-600">{{ teamNames.current }}</span></h3>
+                        <div class="w-full bg-gray-200 rounded-full h-6 mb-2"><div class="bg-gradient-to-r from-red-400 via-indigo-400 to-teal-500 rounded-full h-6 text-center text-white font-bold flex items-center justify-center" :style="{ width: finalScore.current + '%' }">{{ finalScore.current.toFixed(1) }}%</div></div>
+                        <div class="mt-4 text-center p-2 rounded-lg" :class="getMaturityInfo(finalScore.current).colorClass"><p class="font-bold text-white">{{ getMaturityInfo(finalScore.current).level }}</p></div>
+                        <div class="flex justify-center gap-2 mt-4">
+                            <button @click="exportToClipboard('current')" class="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 font-semibold py-1 px-3 rounded-full">Copiar</button>
+                            <button @click="exportData('current')" class="text-xs bg-green-100 text-green-800 hover:bg-green-200 font-semibold py-1 px-3 rounded-full">Exportar</button>
+                        </div>
+                    </div>
+                    <div v-if="resultGenerated.previous" class="bg-gray-50 p-6 rounded-lg border">
+                        <h3 class="text-2xl font-bold text-center text-gray-900 mb-4">Avaliação Comparação: <span class="text-teal-600">{{ teamNames.previous }}</span></h3>
+                        <div class="w-full bg-gray-200 rounded-full h-6 mb-2"><div class="bg-gradient-to-r from-red-400 via-indigo-400 to-teal-500 rounded-full h-6 text-center text-white font-bold flex items-center justify-center" :style="{ width: finalScore.previous + '%' }">{{ finalScore.previous.toFixed(1) }}%</div></div>
+                        <div class="mt-4 text-center p-2 rounded-lg" :class="getMaturityInfo(finalScore.previous).colorClass"><p class="font-bold text-white">{{ getMaturityInfo(finalScore.previous).level }}</p></div>
+                         <div class="flex justify-center gap-2 mt-4">
+                            <button @click="exportToClipboard('previous')" class="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 font-semibold py-1 px-3 rounded-full">Copiar</button>
+                            <button @click="exportData('previous')" class="text-xs bg-green-100 text-green-800 hover:bg-green-200 font-semibold py-1 px-3 rounded-full">Exportar</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div class="p-4 rounded-lg h-80 md:h-96"><canvas id="radarChart"></canvas></div>
+                    <div class="p-4 rounded-lg h-80 md:h-96"><canvas id="barChart"></canvas></div>
+                </div>
+            </div>
+          </div>
+        </main>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, nextTick, watch, onMounted, onUnmounted } = Vue;
+
+    createApp({
+      setup() {
+        // --- STATE ---
+        const activeTab = ref('about');
+        const activeForm = ref('current');
+        const teamNames = ref({ current: '', previous: '' });
+        const responses = ref({ current: Array(16).fill(''), previous: Array(16).fill('') });
+        const resultGenerated = ref({ current: false, previous: false });
+        const openQuestions = ref(Array(16).fill(false));
+        const openSelects = ref(Array(16).fill(false));
+        const toast = ref({ show: false, message: '', visible: false });
+        let chartRadar = null;
+        let chartBar = null;
+
+        // --- DATA ---
+        const allQuestions = [
+            { id: 'EO-01', index: 0, level: 1, label: 'Acesso a Materiais de Segurança', description: 'Avalia se a equipe consome ativamente conteúdo sobre segurança, como artigos, vídeos ou documentações, para se manter atualizada sobre ameaças e boas práticas.', options: ['Não consome', 'Acesso esporádico individual', 'Acesso comum, mas não priorizado', 'Liderança incentiva e prioriza'] },
+            { id: 'EO-02', index: 1, level: 2, label: 'Participação em Treinamentos', description: 'Verifica a frequência e formalidade dos treinamentos de segurança. O ideal é que sejam adaptados à função de cada membro e parte do plano de desenvolvimento.', options: ['Não participa', 'Casos isolados', 'Iniciativa individual', 'Treinamentos formais incentivados'] },
+            { id: 'AT-01', index: 2, level: 1, label: 'Discussão de Riscos e Checklists', description: 'Mede se a equipe realiza análises de risco, mesmo que informais, ou utiliza checklists de segurança durante o planejamento e desenvolvimento de novas funcionalidades.', options: ['Nunca', 'Às vezes em reuniões', 'Comum em projetos críticos', 'Prática regular e incentivada'] },
+            { id: 'AT-02', index: 3, level: 2, label: 'Modelagem de Ameaças', description: 'Avalia a utilização de técnicas estruturadas de modelagem de ameaças (ex: STRIDE) para identificar e mitigar potenciais vetores de ataque no design da aplicação.', options: ['Nunca', 'Aplicação informal', 'Em andamento, sem padrão', 'Processo claro e definido'] },
+            { id: 'RS-01', index: 4, level: 1, label: 'Requisitos de Segurança Iniciais', description: 'Verifica se os requisitos de segurança são considerados desde as fases iniciais do projeto (shift-left), em vez de serem uma preocupação tardia.', options: ['Não considerados', 'Em projetos específicos', 'Comum nos times', 'Parte formal do processo'] },
+            { id: 'RS-02', index: 5, level: 2, label: 'Documentação e Rastreio de Requisitos', description: 'Avalia se os requisitos de segurança são formalmente documentados, rastreados em ferramentas (ex: Jira) e revisados periodicamente.', options: ['Não documentados', 'Apenas em projetos sensíveis', 'Documentados, sem rastreio', 'Rastreáveis e revisados'] },
+            { id: 'BS-01', index: 6, level: 1, label: 'Controle de Bibliotecas de Terceiros', description: 'Mede como a equipe gerencia as dependências do projeto, verificando vulnerabilidades conhecidas (CVEs) em bibliotecas e frameworks utilizados.', options: ['Sem controle', 'Verificação esporádica', 'Uso de ferramentas manuais', 'Automatizado e revisado'] },
+            { id: 'BS-02', index: 7, level: 2, label: 'Processo de Correção de Vulnerabilidades', description: 'Avalia se existe um processo definido para tratar as vulnerabilidades encontradas em dependências, incluindo SLAs para correção.', options: ['Não há processo', 'Correção pontual', 'Monitoramento sem processo', 'Automatizado com SLAs'] },
+            { id: 'TS-01', index: 8, level: 1, label: 'Uso de Ferramentas de Teste (SAST/DAST)', description: 'Verifica a utilização de ferramentas de análise de segurança, como SAST (análise estática) e DAST (análise dinâmica), mesmo que de forma manual.', options: ['Não utiliza', 'Uso eventual', 'Uso manual frequente', 'Integrado na revisão de código'] },
+            { id: 'TS-02', index: 9, level: 2, label: 'Integração de Ferramentas no CI/CD', description: 'Avalia se as ferramentas de análise de segurança estão integradas ao pipeline de CI/CD, automatizando a detecção de falhas a cada build.', options: ['Não integrado', 'Integrado em alguns projetos', 'Cobertura parcial no pipeline', 'Integrado em todo o ciclo'] },
+            { id: 'DS-01', index: 10, level: 1, label: 'Padronização de Deploy', description: 'Mede o nível de automação e padronização do processo de deploy, incluindo versionamento de artefatos e infraestrutura como código (IaC).', options: ['Manual e sem controle', 'Scripts sem padrão', 'Parcialmente automatizado', 'Automatizado e validado'] },
+            { id: 'DS-02', index: 11, level: 2, label: 'Gerenciamento de Segredos', description: 'Avalia como segredos (chaves de API, senhas) são armazenados e acessados, verificando o uso de cofres (vaults) e o princípio do menor privilégio.', options: ['Em texto plano ou variáveis', 'Críticos protegidos', 'Uso de cofre, sem controle', 'Acesso mínimo e auditado'] },
+            { id: 'TR-01', index: 12, level: 1, label: 'Testes de Autenticação e Autorização', description: 'Verifica se os mecanismos de controle de acesso são testados para garantir que usuários só possam acessar as funcionalidades e dados permitidos.', options: ['Não testados', 'Testes manuais esporádicos', 'Uso de scripts ou ferramentas', 'Automatizado e validado'] },
+            { id: 'TR-02', index: 13, level: 2, label: 'Testes de Abuso (Abuse Cases)', description: 'Avalia se a equipe cria e executa testes que simulam o comportamento de um ator malicioso, indo além dos "caminhos felizes" e testando lógicas de negócio.', options: ['Não criados', 'Criação informal', 'Recorrente em parte do time', 'Automatizado e revisado'] },
+            { id: 'GD-01', index: 14, level: 1, label: 'Priorização de Correções', description: 'Mede se a equipe utiliza critérios claros (ex: CVSS, impacto no negócio) para priorizar a correção das vulnerabilidades e falhas de segurança encontradas.', options: ['Não prioriza', 'Por urgência percebida', 'Critérios básicos definidos', 'Critérios claros e alinhados'] },
+            { id: 'GD-02', index: 15, level: 2, label: 'Definição e Acompanhamento de SLAs', description: 'Avalia se existem Acordos de Nível de Serviço (SLAs) formais para a correção de vulnerabilidades, e se o cumprimento desses SLAs é monitorado.', options: ['Não há SLAs', 'Apenas para falhas críticas', 'Definidos, sem monitoramento', 'Definidos e revisados'] },
+        ];
+        const questionsByGroup = ref([
+          { title: 'Fundamentos e Planejamento', questions: [ allQuestions[0], allQuestions[1], allQuestions[4], allQuestions[5] ] },
+          { title: 'Avaliação e Validação', questions: [ allQuestions[2], allQuestions[3], allQuestions[8], allQuestions[9], allQuestions[12], allQuestions[13] ] },
+          { title: 'Execução e Resposta', questions: [ allQuestions[6], allQuestions[7], allQuestions[10], allQuestions[11], allQuestions[14], allQuestions[15] ] }
+        ]);
+
+        // --- COMPUTED ---
+        const level1Indexes = allQuestions.filter(q => q.level === 1).map(q => q.index);
+        const level2Indexes = allQuestions.filter(q => q.level === 2).map(q => q.index);
+        const calculateScores = (responseData) => ({
+            grouped: [ (responseData[0]||0) + (responseData[1]||0) + (responseData[4]||0) + (responseData[5]||0), (responseData[2]||0) + (responseData[3]||0) + (responseData[8]||0) + (responseData[9]||0) + (responseData[12]||0) + (responseData[13]||0), (responseData[6]||0) + (responseData[7]||0) + (responseData[10]||0) + (responseData[11]||0) + (responseData[14]||0) + (responseData[15]||0) ],
+            final: (() => { const l1 = level1Indexes.reduce((s, i) => s + (responseData[i]||0), 0); const l2 = level2Indexes.reduce((s, i) => s + (responseData[i]||0), 0); const maxScore = 72; const currentScore = (l1 * 1) + (l2 * 2); return maxScore > 0 ? (currentScore / maxScore) * 100 : 0; })()
+        });
+        const scores = computed(() => ({ current: calculateScores(responses.value.current), previous: calculateScores(responses.value.previous) }));
+        const finalScore = computed(() => ({ current: scores.value.current.final, previous: scores.value.previous.final }));
+        const progressPercentage = computed(() => (responses.value[activeForm.value].filter(r => r !== '').length / 16) * 100);
+        const circumference = 2 * Math.PI * 45;
+        const progressOffset = computed(() => circumference - (progressPercentage.value / 100) * circumference);
+
+        // --- METHODS ---
+        function setActiveTab(tabName) { activeTab.value = tabName; }
+        function toggleQuestion(index) { openQuestions.value[index] = !openQuestions.value[index]; }
+        
+        function toggleSelect(index) {
+            const currentState = openSelects.value[index];
+            openSelects.value = Array(16).fill(false);
+            openSelects.value[index] = !currentState;
+        }
+
+        function selectOption(form, questionIndex, optionIndex) {
+            responses.value[form][questionIndex] = optionIndex;
+            openSelects.value[questionIndex] = false;
+        }
+        
+        function getSelectedOptionText(form, questionIndex, options) {
+            const selectedIndex = responses.value[form][questionIndex];
+            return (selectedIndex !== '') ? options[selectedIndex] : 'Selecione...';
+        }
+
+        function getOptionHoverColor(index) {
+            if (index === 0) return 'text-red-800 hover:bg-red-100';
+            if (index === 1 || index === 2) return 'text-orange-800 hover:bg-orange-100';
+            if (index === 3) return 'text-green-800 hover:bg-green-100';
+            return 'text-gray-900 hover:bg-gray-100';
+        }
+
+        function showToast(message) {
+            toast.value.message = message;
+            toast.value.show = true;
+            nextTick(() => { toast.value.visible = true; });
+            setTimeout(() => {
+                toast.value.visible = false;
+                setTimeout(() => { toast.value.show = false; }, 300);
+            }, 2000);
+        }
+        function getBorderColor(response) {
+            if (response === '') return 'border-gray-300';
+            if (response === 0) return 'border-red-500';
+            if (response === 1 || response === 2) return 'border-orange-500';
+            if (response === 3) return 'border-green-500';
+            return 'border-gray-300';
+        }
+        function getMaturityInfo(score) {
+            if (score <= 25) return { level: 'Inicial', colorClass: 'bg-red-500' };
+            if (score <= 50) return { level: 'Emergente', colorClass: 'bg-orange-500' };
+            if (score <= 75) return { level: 'Em Evolução', colorClass: 'bg-yellow-500' };
+            if (score <= 90) return { level: 'Estruturada', colorClass: 'bg-blue-500' };
+            return { level: 'Maturidade Avançada', colorClass: 'bg-green-500' };
+        }
+        
+        function renderCharts() {
+            renderRadarChart();
+            renderBarChart();
+        }
+
+        function renderRadarChart() {
+            if (chartRadar) chartRadar.destroy();
+            const ctx = document.getElementById('radarChart')?.getContext('2d');
+            if (!ctx) return;
+            const datasets = [];
+            if (resultGenerated.value.current) datasets.push({ label: `Principal (${teamNames.value.current})`, data: scores.value.current.grouped, backgroundColor: 'rgba(79, 70, 229, 0.2)', borderColor: 'rgba(79, 70, 229, 1)', borderWidth: 2 });
+            if (resultGenerated.value.previous) datasets.push({ label: `Comparação (${teamNames.value.previous})`, data: scores.value.previous.grouped, backgroundColor: 'rgba(13, 148, 136, 0.2)', borderColor: 'rgba(13, 148, 136, 1)', borderWidth: 2 });
+            chartRadar = new Chart(ctx, { type: 'radar', data: { labels: ['Fundamentos', 'Validação', 'Execução'], datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { r: { suggestedMin: 0, max: 24 } } } });
+        }
+        
+        function renderBarChart() {
+            if (chartBar) chartBar.destroy();
+            const ctx = document.getElementById('barChart')?.getContext('2d');
+            if (!ctx) return;
+            const datasets = [];
+            
+            const principalBarColors = ['rgba(129, 140, 248, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(13, 148, 136, 0.8)'];
+            const previousBarColors = ['rgba(165, 180, 252, 0.7)', 'rgba(96, 165, 250, 0.7)', 'rgba(45, 212, 191, 0.7)'];
+
+            if (resultGenerated.value.current) datasets.push({ label: `Principal`, data: scores.value.current.grouped, backgroundColor: principalBarColors });
+            if (resultGenerated.value.previous) datasets.push({ label: `Comparação`, data: scores.value.previous.grouped, backgroundColor: previousBarColors });
+            
+            chartBar = new Chart(ctx, { type: 'bar', data: { labels: ['Fundamentos', 'Validação', 'Execução'], datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 24 } } } });
+        }
+
+        function handleSubmit() {
+            const wasOnResultTab = activeTab.value === 'result';
+            
+            if (teamNames.value.current && responses.value.current.some(r => r !== '')) resultGenerated.value.current = true;
+            if (teamNames.value.previous && responses.value.previous.some(r => r !== '')) resultGenerated.value.previous = true;
+            
+            setActiveTab('result');
+
+            if (wasOnResultTab) {
+                nextTick(() => renderCharts());
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) showToast('Dados copiados com sucesso!');
+                else showToast('Não foi possível copiar os dados.');
+            } catch (err) {
+                showToast('Não foi possível copiar os dados.');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function exportToClipboard(formType) {
+            const dataToExport = {
+                teamName: teamNames.value[formType],
+                responses: {}
+            };
+            allQuestions.forEach(q => {
+                dataToExport.responses[q.id] = responses.value[formType][q.index];
+            });
+            const dataStr = JSON.stringify(dataToExport);
+            
+            if (!navigator.clipboard) {
+                fallbackCopyTextToClipboard(dataStr);
+                return;
+            }
+            navigator.clipboard.writeText(dataStr).then(() => {
+                showToast('Dados copiados!');
+            }, (err) => {
+                console.warn('Falha ao copiar com API moderna, usando fallback:', err);
+                fallbackCopyTextToClipboard(dataStr);
+            });
+        }
+        
+        function exportData(formType) {
+            const dataToExport = {
+                teamName: teamNames.value[formType],
+                responses: {}
+            };
+            allQuestions.forEach(q => {
+                dataToExport.responses[q.id] = responses.value[formType][q.index];
+            });
+            const safeTeamName = (teamNames.value[formType] || 'export').replace(/\s+/g, '_');
+            const dataStr = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mass-scorecard-${formType}-${safeTeamName}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function processImportedData(jsonString, formType) {
+            try {
+                const data = JSON.parse(jsonString);
+                if (data.teamName && data.responses && typeof data.responses === 'object') {
+                    const newResponsesArray = Array(16).fill('');
+                    allQuestions.forEach(q => {
+                        if (data.responses[q.id] !== undefined) {
+                            newResponsesArray[q.index] = data.responses[q.id];
+                        }
+                    });
+                    teamNames.value[formType] = data.teamName;
+                    responses.value[formType] = newResponsesArray;
+                    handleSubmit();
+                    showToast('Dados importados com sucesso!');
+                } else {
+                    alert("Formato de JSON inválido.");
+                }
+            } catch (e) {
+                alert("Erro ao processar o JSON. Verifique o conteúdo.");
+            }
+        }
+
+        function handleFileUpload(formType, event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                processImportedData(e.target.result, formType);
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset input
+        }
+        
+        function populateWithExampleData() {
+            teamNames.value.current = "Time Alpha (Atual)";
+            responses.value.current = [3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2];
+            teamNames.value.previous = "Time Alpha (Anterior)";
+            responses.value.previous = [1, 0, 2, 1, 2, 1, 1, 0, 2, 1, 2, 1, 1, 0, 2, 1];
+            handleSubmit();
+            showToast("Dados de exemplo carregados!");
+        }
+
+        const handleClickOutside = (event) => {
+            const selects = document.querySelectorAll('.relative.ml-4');
+            if (!Array.from(selects).some(sel => sel.contains(event.target))) {
+                openSelects.value = Array(16).fill(false);
+            }
+        };
+
+        onMounted(() => document.addEventListener('click', handleClickOutside));
+        onUnmounted(() => document.removeEventListener('click', handleClickOutside));
+        watch(activeTab, (newTab) => { if (newTab === 'result') { nextTick(() => renderCharts()); } });
+
+        return {
+          activeTab, activeForm, teamNames, responses, resultGenerated, finalScore, questionsByGroup, openQuestions, openSelects, toast,
+          progressPercentage, circumference, progressOffset,
+          setActiveTab, handleSubmit, toggleQuestion, getBorderColor, getMaturityInfo, toggleSelect, selectOption, getSelectedOptionText, getOptionHoverColor,
+          exportToClipboard, handleFileUpload, exportData, populateWithExampleData
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
